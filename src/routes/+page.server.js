@@ -1,4 +1,7 @@
-export async function load() {
+export async function load({setHeaders}) {
+    setHeaders({
+        "Cache-Control": "public, max-age=3600",
+    });
     return {
         watches: await fetch('https://www.horlogeforum.nl/c/horlogemarkt/12')
             .then(data => data.text())
