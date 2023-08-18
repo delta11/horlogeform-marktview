@@ -3,6 +3,7 @@ export async function load({setHeaders}) {
         "Cache-Control": "public, max-age=3600",
     });
     return {
+        // Endpoint returns 30 posts by default, first 2 posts are the rules
         watches: await fetch('https://www.horlogeforum.nl/c/horlogemarkt/12')
             .then(data => data.text())
             .then(text => new Promise((resolve) => {
@@ -24,7 +25,14 @@ export async function load({setHeaders}) {
 
                 while ((nameMatches = nameRegex.exec(text)) !== null) {
                     if (nameMatches[1]) {
-                        extractedNames.push(nameMatches[1]);
+                        let nameMatch = nameMatches[1];
+                        if (nameMatch.startsWith('TK:')) {
+                            nameMatch = nameMatch.substring(3);
+                        }
+                        if (nameMatch.startsWith('TK/TR:')) {
+                            nameMatch = nameMatch.substring(6);
+                        }
+                        extractedNames.push(nameMatch);
                     }
                 }
 
@@ -39,8 +47,7 @@ export async function load({setHeaders}) {
                 }
                 const filteredArray = resultsArray
                     .filter(watch => !watch.name.startsWith('Regels voor de'))
-                    .filter(watch => !watch.name.startsWith('Binnen 6 maanden'))
-                    .slice(0, 10);
+                    .filter(watch => !watch.name.startsWith('Binnen 6 maanden'));
 
                 const withPicture = Promise.all(filteredArray
                     .map(watch => {
@@ -49,20 +56,33 @@ export async function load({setHeaders}) {
                     .map(async watchFetch => {
                         const fetchResult = await watchFetch.fetch;
                         const html = await fetchResult.text();
-                        const hrefRegex = /<a\s+[^>]*?class=["'][^"']*lightbox[^"']*["'][^>]*?href=["'](.*?)["']/i;
-                        const imageMatch = html.match(hrefRegex);
-                        const priceRegex = /Vraagprijs:\s*\w*:{0,1}\u20AC{0,1}\s*(\d+(?:\.\d+)?)\s*\u20AC{0,1}\s*/i;
-                        const priceMatch = html.match(priceRegex);
-
-                        const imageUrl = imageMatch ? imageMatch[1] : '';
-                        const price = priceMatch ? priceMatch[1] : '';
+                        const imageUrl = findImageUrl(html);
+                        const price = findPrice(html);
                         return {...watchFetch.watch, pictureUrl: imageUrl, price}
                     }));
 
-                withPicture.then(value =>{
+                withPicture.then(value => {
                     console.log(value);
                     resolve(value);
                 })
             }))
     };
+}
+
+const findPrice = (html) => {
+    const priceRegex = /Vraagprijs:\s*\W*:{0,1}\u20AC{0,1}\s*(\d+(?:\.\d+)?)\s*\u20AC{0,1}\s*/i;
+    const priceMatch = html.match(priceRegex);
+    return priceMatch ? priceMatch[1] : '-';
+}
+
+const findImageUrl = (html) => {
+    const hrefRegex = /<a\s+[^>]*?class=["'][^"']*lightbox[^"']*["'][^>]*?href=["'](.*?)["']/i;
+    const imageMatch = html.match(hrefRegex);
+    return imageMatch ? imageMatch[1] : findImageUrlFallBack(html);
+};
+
+const findImageUrlFallBack = (html) => {
+    const regex =   /<img[^>]*?src=["'](.*uploads.*?)["'][^>]*>/gi;;
+    const imageMatch = html.match(regex);
+    return imageMatch ? imageMatch.map(match => match.match(/src=["'](.*?)["']/i)[1])[1] : '';
 }
