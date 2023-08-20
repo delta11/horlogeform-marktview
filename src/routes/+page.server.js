@@ -7,6 +7,7 @@ export async function load({setHeaders}) {
         watches: await fetch('https://www.horlogeforum.nl/c/horlogemarkt/12')
             .then(data => data.text())
             .then(text => new Promise((resolve) => {
+                const body = text.substring(text.indexOf('<body'));
 
                 const urlRegex = /<meta itemprop='url' content='(.*?)'>/g;
                 const nameRegex = /<meta itemprop='name' content='(.*?)'>/g;
@@ -17,13 +18,13 @@ export async function load({setHeaders}) {
                 const extractedUrls = [];
                 const extractedNames = [];
 
-                while ((urlMatches = urlRegex.exec(text)) !== null) {
+                while ((urlMatches = urlRegex.exec(body)) !== null) {
                     if (urlMatches[1]) {
                         extractedUrls.push(urlMatches[1]);
                     }
                 }
 
-                while ((nameMatches = nameRegex.exec(text)) !== null) {
+                while ((nameMatches = nameRegex.exec(body)) !== null) {
                     if (nameMatches[1]) {
                         let nameMatch = nameMatches[1];
                         if (nameMatch.startsWith('TK:')) {
@@ -56,13 +57,13 @@ export async function load({setHeaders}) {
                     .map(async watchFetch => {
                         const fetchResult = await watchFetch.fetch;
                         const html = await fetchResult.text();
-                        const imageUrl = findImageUrl(html);
-                        const price = findPrice(html);
+                        const watchFetchBody = html.substring(html.indexOf('<body'));
+                        const imageUrl = findImageUrl(watchFetchBody);
+                        const price = findPrice(watchFetchBody);
                         return {...watchFetch.watch, pictureUrl: imageUrl, price}
                     }));
 
                 withPicture.then(value => {
-                    console.log(value);
                     resolve(value);
                 })
             }))
@@ -70,8 +71,12 @@ export async function load({setHeaders}) {
 }
 
 const findPrice = (html) => {
-    const priceRegex = /Vraagprijs:\s*\W*:{0,1}\u20AC{0,1}\s*(\d+(?:\.\d+)?)\s*\u20AC{0,1}\s*/i;
+    const priceRegex = /Vraagprijs:\s*\W*:{0,1}\u20AC{0,1}\s*(\d+(?:\.\d+)?(?:,\d+)?)\s*\u20AC{0,1}\s*/i;
     const priceMatch = html.match(priceRegex);
+    if(priceMatch) {
+        console.log(priceMatch[1]);
+        console.log(priceMatch[0]);
+    }
     return priceMatch ? priceMatch[1] : '-';
 }
 
